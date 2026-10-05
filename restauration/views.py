@@ -3,28 +3,63 @@ Vues de l'API.
 
 Un ViewSet reçoit la requête HTTP et décide quoi répondre.
 C'est l'équivalent, côté API, de la classe ModelAdmin côté admin.
-
-ReadOnlyModelViewSet ne fournit QUE la lecture :
-    GET /api/services/     -> la liste
-    GET /api/services/1/   -> un élément
-Les verbes POST, PUT et DELETE renvoient 405 (« méthode non autorisée »),
-car aucune authentification n'est encore en place (ce sera la séance 3).
 """
-from rest_framework import viewsets
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Menu, Service
-from .serializers import MenuSerializer, ServiceSerializer
+from .permissions import LectureAuthentifieeEcritureGestionnaire
+from .serializers import (
+    EnrolementSerializer,
+    MenuSerializer,
+    MonTokenObtainPairSerializer,
+    ServiceSerializer,
+)
 
 
-class MenuViewSet(viewsets.ReadOnlyModelViewSet):
-    # queryset : QUELLES données sont concernées
+class MonTokenObtainPairView(TokenObtainPairView):
+    """POST /api/token/ : échange identifiant + mot de passe contre deux jetons."""
+    serializer_class = MonTokenObtainPairSerializer
+
+
+class MenuViewSet(viewsets.ModelViewSet):
+    # ModelViewSet (et non plus ReadOnlyModelViewSet) : l'écriture est désormais
+    # possible, mais la permission ci-dessous la réserve aux gestionnaires.
     queryset = Menu.objects.all()
-    # serializer_class : COMMENT les traduire en JSON
     serializer_class = MenuSerializer
+    permission_classes = [LectureAuthentifieeEcritureGestionnaire]
 
 
-class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
-    # select_related("menu") : Django va chercher le service ET son menu
-    # en UNE seule requête SQL, au lieu d'une requête par service.
+class ServiceViewSet(viewsets.ModelViewSet):
     queryset = Service.objects.select_related("menu").all()
     serializer_class = ServiceSerializer
+    permission_classes = [LectureAuthentifieeEcritureGestionnaire]
+
+
+class EnrolementView(generics.CreateAPIView):
+    """
+    POST /api/eleves/enrolement/ (F1)
+
+    AllowAny : c'est la SEULE route ouverte à un visiteur non connecté, et pour
+    cause — on ne peut pas exiger un jeton de quelqu'un qui n'a pas encore de
+    compte. C'est une exception assumée au « refus par défaut ».
+    """
+
+    serializer_class = EnrolementSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        # raise_exception=True : en cas de données invalides, DRF renvoie
+        # automatiquement une 400 avec le détail des erreurs par champ.
+        serializer.is_valid(raise_exception=True)
+        eleve = serializer.save()
+        return Response(
+            {
+                "detail": "Enrôlement réussi. Vous pouvez maintenant demander un jeton.",
+                "eleve_id": eleve.id,
+                "username": eleve.utilisateur.username,
+            },
+            status=status.HTTP_201_CREATED,
+        )

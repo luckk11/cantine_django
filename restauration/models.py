@@ -7,7 +7,7 @@ Tous les montants sont en CENTIMES (entiers), jamais en float.
 """
 from django.db import models
 from django.db.models import Q
-
+from django.conf import settings
 
 class Eleve(models.Model):
     nom = models.CharField(max_length=80)
@@ -18,6 +18,14 @@ class Eleve(models.Model):
     reference_attestation = models.CharField(max_length=40, unique=True)
     # Catégorie de quotient familial, sert à trouver le bon Tarif
     quotient_categorie = models.CharField(max_length=10)
+        # Lien vers le compte de connexion Django. Vide tant que l'élève n'est pas enrôlé (F1).
+    utilisateur = models.OneToOneField(
+        settings.AUTH_USER_MODEL,   # « le modèle User du projet », jamais User en dur
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="eleve",       # accès inverse : user.eleve
+    )
 
     class Meta:
         verbose_name = "élève"          # nom affiché dans l'admin

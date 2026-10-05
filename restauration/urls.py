@@ -1,22 +1,25 @@
 """
 URLs de l'application restauration.
 
-Le routeur DRF fabrique automatiquement les adresses à partir des ViewSets,
-comme admin.site.urls le fait pour l'admin.
-
-router.register(r"services", ServiceViewSet) produit :
-    /services/      -> la liste      (nom de route : service-list)
-    /services/1/    -> un élément    (nom de route : service-detail)
+Deux sortes de routes cohabitent :
+- celles fabriquées automatiquement par le routeur DRF (les ViewSets) ;
+- celles écrites à la main avec path(), pour les vues qui ne sont pas des ViewSets.
 """
+from django.urls import path
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
-from .views import MenuViewSet, ServiceViewSet
+from .views import EnrolementView, MenuViewSet, MonTokenObtainPairView, ServiceViewSet
 
 router = DefaultRouter()
-# basename : préfixe des noms de routes générés
 router.register(r"menus", MenuViewSet, basename="menu")
 router.register(r"services", ServiceViewSet, basename="service")
 
-# DefaultRouter ajoute aussi une page d'accueil à la racine de l'API,
-# qui liste les points d'entrée disponibles.
-urlpatterns = router.urls
+urlpatterns = [
+    # Authentification
+    path("token/", MonTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    # Enrôlement (F1)
+    path("eleves/enrolement/", EnrolementView.as_view(), name="enrolement"),
+] + router.urls   # on concatène les routes du routeur
